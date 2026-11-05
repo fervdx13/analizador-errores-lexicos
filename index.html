@@ -1,0 +1,2504 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analizador de Errores Léxicos — Fernando Vidal Delgado</title>
+  
+  <!-- Tipografías Google Fonts requeridas -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Orbitron:wght@400;600;700;800;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    /* ═════════════════════════════════════════════════════════════════════
+       SISTEMA DE DISEÑO VAPORWAVE / CYBERPUNK NEON
+       Paleta de Colores Institucional y Clasificación Léxica
+       ═════════════════════════════════════════════════════════════════════ */
+    :root {
+      --bg-primary: #0F0C1B;
+      --card-bg: #1A1528;
+      --card-bg-elevated: #221C34;
+      --accent-primary: #FF007F;     /* Rosa Neón */
+      --accent-secondary: #00F5D4;   /* Cyan Neón */
+      --color-error: #FF0055;        /* Rojo Neón Error */
+      --color-id: #FFE600;           /* Amarillo Neón Identificadores */
+      --color-reserved: #7B2CBF;     /* Púrpura Reservadas */
+      --color-number: #F15BB5;       /* Rosa Números */
+      --color-op-arith: #00BBF9;     /* Azul Neón Operadores Aritméticos */
+      --color-op-comp: #9B5DE5;      /* Violeta Comparación */
+      --color-op-assign: #FEE440;    /* Amarillo Asignación */
+      --color-op-logic: #00BBF9;     /* Operadores Lógicos */
+      --color-delimiter: #A29BFE;    /* Lavanda Delimitadores */
+      --color-comment: #5C677D;      /* Gris Azulado Comentarios */
+      --color-string: #00F5D4;       /* Cyan Cadenas */
+      --text-main: #F3EFFE;
+      --text-dim: #9D92B8;
+      --border-glow: rgba(0, 245, 212, 0.22);
+      --glow-pink: rgba(255, 0, 127, 0.45);
+      --glow-cyan: rgba(0, 245, 212, 0.35);
+      --font-title: 'Orbitron', monospace;
+      --font-body: 'Rajdhani', sans-serif;
+      --font-code: 'Fira Code', monospace;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      font-family: var(--font-body);
+      font-size: 16px;
+      line-height: 1.6;
+      min-height: 100vh;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* Fondo de Rejilla Cyberpunk Animado */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: 
+        linear-gradient(rgba(0, 245, 212, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 0, 127, 0.035) 1px, transparent 1px);
+      background-size: 44px 44px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Resplandor ambiental de fondo */
+    body::after {
+      content: '';
+      position: fixed;
+      top: -150px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 900px;
+      height: 450px;
+      background: radial-gradient(ellipse at center, rgba(123, 44, 191, 0.25) 0%, rgba(255, 0, 127, 0.12) 45%, transparent 75%);
+      pointer-events: none;
+      z-index: 0;
+      filter: blur(50px);
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 1380px;
+      margin: 0 auto;
+      padding: 1.8rem 1.4rem 4rem;
+    }
+
+    /* ═════════════════════════════════════════════════════════════════════
+       HEADER & DATOS INSTITUCIONALES
+       ═════════════════════════════════════════════════════════════════════ */
+    header {
+      background: linear-gradient(180deg, rgba(26, 21, 40, 0.92) 0%, rgba(22, 18, 34, 0.75) 100%);
+      border: 1px solid var(--border-glow);
+      border-radius: 18px;
+      padding: 2.2rem 2rem 1.8rem;
+      margin-bottom: 2rem;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 245, 212, 0.08);
+      backdrop-filter: blur(12px);
+    }
+
+    header::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary), var(--color-reserved), var(--accent-primary));
+      background-size: 300% 100%;
+      animation: cyberGradient 8s linear infinite;
+    }
+
+    @keyframes cyberGradient {
+      0% { background-position: 0% 50%; }
+      100% { background-position: 300% 50%; }
+    }
+
+    .header-top {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1.2rem;
+    }
+
+    .badge-pill-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+    }
+
+    .badge-pill {
+      font-family: var(--font-code);
+      font-size: 0.76rem;
+      font-weight: 600;
+      padding: 0.3rem 0.85rem;
+      border-radius: 30px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .badge-pill.primary {
+      background: rgba(255, 0, 127, 0.14);
+      color: var(--accent-primary);
+      border: 1px solid rgba(255, 0, 127, 0.4);
+      box-shadow: 0 0 10px rgba(255, 0, 127, 0.2);
+    }
+
+    .badge-pill.secondary {
+      background: rgba(0, 245, 212, 0.12);
+      color: var(--accent-secondary);
+      border: 1px solid rgba(0, 245, 212, 0.35);
+      box-shadow: 0 0 10px rgba(0, 245, 212, 0.2);
+    }
+
+    .badge-pill.purple {
+      background: rgba(123, 44, 191, 0.2);
+      color: #C084FC;
+      border: 1px solid rgba(123, 44, 191, 0.5);
+    }
+
+    h1.project-title {
+      font-family: var(--font-title);
+      font-size: clamp(1.6rem, 3.8vw, 2.6rem);
+      font-weight: 900;
+      letter-spacing: 0.06em;
+      line-height: 1.2;
+      background: linear-gradient(135deg, #FFFFFF 15%, var(--accent-secondary) 55%, var(--accent-primary) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 0.5rem;
+      text-shadow: 0 0 35px rgba(0, 245, 212, 0.3);
+    }
+
+    .project-subtitle {
+      font-size: 1.05rem;
+      color: var(--text-dim);
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      margin-bottom: 1.6rem;
+    }
+
+    /* Bloque de Metadatos Institucionales Visibles */
+    .metadata-banner {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+      padding: 1.1rem 1.4rem;
+      background: rgba(15, 12, 27, 0.7);
+      border: 1px solid rgba(0, 245, 212, 0.15);
+      border-radius: 12px;
+    }
+
+    .meta-box {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+
+    .meta-label {
+      font-family: var(--font-code);
+      font-size: 0.7rem;
+      color: var(--accent-primary);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-weight: 600;
+    }
+
+    .meta-value {
+      font-family: var(--font-title);
+      font-size: 0.98rem;
+      color: var(--accent-secondary);
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+
+    /* ═════════════════════════════════════════════════════════════════════
+       GRID PRINCIPAL Y CONTENEDORES (CARDS)
+       ═════════════════════════════════════════════════════════════════════ */
+    .main-layout {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1.8rem;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-glow);
+      border-radius: 16px;
+      padding: 1.8rem;
+      position: relative;
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+
+    .card:hover {
+      border-color: rgba(0, 245, 212, 0.35);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55), 0 0 20px rgba(0, 245, 212, 0.08);
+    }
+
+    .card-title {
+      font-family: var(--font-title);
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--accent-secondary);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      margin-bottom: 1.3rem;
+    }
+
+    .card-title::before {
+      content: '';
+      display: inline-block;
+      width: 4px;
+      height: 1.2em;
+      background: linear-gradient(180deg, var(--accent-primary), var(--accent-secondary));
+      border-radius: 4px;
+      box-shadow: 0 0 10px var(--accent-primary);
+    }
+
+    /* ═════════════════════════════════════════════════════════════════════
+       BARRA DE CONTROLES: SELECTOR, PRESETS Y BOTONES DE ACCIÓN
+       ═════════════════════════════════════════════════════════════════════ */
+    .controls-panel {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1.2rem;
+      padding-bottom: 1.2rem;
+      border-bottom: 1px solid rgba(157, 146, 184, 0.15);
+    }
+
+    .lang-selector-group {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      flex-wrap: wrap;
+    }
+
+    .input-label {
+      font-family: var(--font-code);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-dim);
+      font-weight: 600;
+    }
+
+    select#lenguajeTarget {
+      background: var(--card-bg-elevated);
+      color: var(--accent-secondary);
+      border: 1px solid rgba(0, 245, 212, 0.3);
+      border-radius: 10px;
+      padding: 0.65rem 2.4rem 0.65rem 1.1rem;
+      font-family: var(--font-title);
+      font-size: 0.92rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      position: relative;
+      background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2300F5D4' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 1rem center;
+      transition: all 0.25s ease;
+      box-shadow: 0 0 15px rgba(0, 0, 0, 0.4);
+    }
+
+    select#lenguajeTarget:hover, select#lenguajeTarget:focus {
+      outline: none;
+      border-color: var(--accent-secondary);
+      box-shadow: 0 0 18px rgba(0, 245, 212, 0.25);
+    }
+
+    .presets-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.55rem;
+      align-items: center;
+    }
+
+    /* Estilo de Botones Cyberpunk */
+    .btn {
+      font-family: var(--font-title);
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 0.62rem 1.25rem;
+      border-radius: 9px;
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+
+    .btn:active {
+      transform: translateY(1px);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-primary) 0%, #B8005A 100%);
+      color: #FFFFFF;
+      box-shadow: 0 0 18px var(--glow-pink);
+    }
+
+    .btn-primary:hover {
+      box-shadow: 0 0 28px rgba(255, 0, 127, 0.7);
+      transform: translateY(-2px);
+    }
+
+    .btn-secondary {
+      background: rgba(0, 245, 212, 0.1);
+      color: var(--accent-secondary);
+      border: 1px solid rgba(0, 245, 212, 0.35);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(0, 245, 212, 0.22);
+      border-color: var(--accent-secondary);
+      box-shadow: 0 0 18px var(--glow-cyan);
+      transform: translateY(-2px);
+    }
+
+    .btn-special-case {
+      background: rgba(255, 0, 85, 0.12);
+      color: #FF5588;
+      border: 1px solid rgba(255, 0, 85, 0.45);
+    }
+
+    .btn-special-case:hover {
+      background: rgba(255, 0, 85, 0.25);
+      border-color: var(--color-error);
+      box-shadow: 0 0 20px rgba(255, 0, 85, 0.4);
+      transform: translateY(-2px);
+    }
+
+    .btn-export {
+      background: rgba(123, 44, 191, 0.15);
+      color: #D6A4FF;
+      border: 1px solid rgba(123, 44, 191, 0.45);
+    }
+
+    .btn-export:hover {
+      background: rgba(123, 44, 191, 0.3);
+      border-color: #A855F7;
+      box-shadow: 0 0 18px rgba(123, 44, 191, 0.35);
+      transform: translateY(-2px);
+    }
+
+    .btn-outline {
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-dim);
+      border: 1px solid rgba(157, 146, 184, 0.25);
+    }
+
+    .btn-outline:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.08);
+      border-color: var(--text-dim);
+    }
+
+    .btn-sm {
+      padding: 0.45rem 0.9rem;
+      font-size: 0.74rem;
+    }
+
+    .btn-lg {
+      padding: 0.85rem 2.2rem;
+      font-size: 0.98rem;
+    }
+
+    /* ═════════════════════════════════════════════════════════════════════
+       EDITOR DE CÓDIGO CON CURSOR TRACKER
+       ═════════════════════════════════════════════════════════════════════ */
+    .editor-container {
+      position: relative;
+      margin-bottom: 1.3rem;
+    }
+
+    .editor-status-bar {
+      position: absolute;
+      top: 0.8rem;
+      right: 1.2rem;
+      font-family: var(--font-code);
+      font-size: 0.74rem;
+      color: var(--text-dim);
+      background: rgba(15, 12, 27, 0.85);
+      padding: 0.25rem 0.65rem;
+      border-radius: 6px;
+      border: 1px solid rgba(0, 245, 212, 0.2);
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    textarea#codigoInput {
+      width: 100%;
+      min-height: 290px;
+      background: #110D1F;
+      border: 1px solid rgba(0, 245, 212, 0.2);
+      border-radius: 12px;
+      padding: 1.2rem 1.4rem;
+      color: #EAE5F8;
+      font-family: var(--font-code);
+      font-size: 0.92rem;
+      line-height: 1.65;
+      resize: vertical;
+      transition: border-color 0.25s, box-shadow 0.25s;
+      tab-size: 4;
+      white-space: pre;
+    }
+
+    textarea#codigoInput:focus {
+      outline: none;
+      border-color: var(--accent-secondary);
+      box-shadow: 0 0 24px rgba(0, 245, 212, 0.16);
+    }
+
+    /* Banner Informativo de Diagnóstico */
+    #bannerDiagnostico {
+      padding: 0.85rem 1.2rem;
+      border-radius: 10px;
+      font-family: var(--font-code);
+      font-size: 0.88rem;
+      margin-bottom: 1.4rem;
+      display: none;
+      align-items: center;
+      gap: 0.7rem;
+    }
+
+    #bannerDiagnostico.success {
+      background: rgba(0, 245, 212, 0.08);
+      border: 1px solid rgba(0, 245, 212, 0.35);
+      color: var(--accent-secondary);
+      display: flex;
+    }
+
+    #bannerDiagnostico.error {
+      background: rgba(255, 0, 85, 0.1);
+      border: 1px solid rgba(255, 0, 85, 0.45);
+      color: #FF5588;
+      display: flex;
+    }
+
+    .editor-actions-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.8rem;
+    }
+
+    /* ═════════════════════════════════════════════════════════════════════
+       TARJETAS DE MÉTRICAS EN TIEMPO REAL (4 CARDS REQUERIDAS)
+       ═════════════════════════════════════════════════════════════════════ */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 1.2rem;
+      margin-bottom: 1.8rem;
+    }
+
+    .metric-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-glow);
+      border-radius: 14px;
+      padding: 1.4rem 1.5rem;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: transform 0.25s, box-shadow 0.25s;
+    }
+
+    .metric-card:hover {
+      transform: translateY(-3px);
+    }
+
+    .metric-card::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+    }
+
+    .metric-card.total::after {
+      background: var(--accent-secondary);
+      box-shadow: 0 0 12px var(--accent-secondary);
+    }
+    .metric-card.valid::after {
+      background: #00F5D4;
+      box-shadow: 0 0 12px #00F5D4;
+    }
+    .metric-card.errors::after {
+      background: var(--color-error);
+      box-shadow: 0 0 14px var(--color-error);
+    }
+    .metric-card.rate::after {
+      background: var(--accent-primary);
+      box-shadow: 0 0 12px var(--accent-primary);
+    }
+
+    .metric-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.6rem;
+    }
+
+    .metric-icon {
+      font-size: 1.7rem;
+    }
+
+    .metric-label {
+      font-family: var(--font-code);
+      font-size: 0.76rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-dim);
+      font-weight: 600;
+    }
+
+    .metric-value {
+      font-family: var(--font-title);
+      font-size: 2.5rem;
+      font-weight: 900;
+      line-height: 1;
+      margin-bottom: 0.3rem;
+    }
+
+    .metric-card.total .metric-value { color: var(--accent-secondary); }
+    .metric-card.valid .metric-value { color: #00F5D4; }
+    .metric-card.errors .metric-value { color: var(--color-error); }
+    .metric-card.rate .metric-value { color: var(--accent-primary); }
+
+    .metric-progress-wrap {
+      width: 100%;
+      height: 7px;
+      background: rgba(15, 12, 27, 0.8);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-top: 0.5rem;
+    }
+
+    .metric-progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent-secondary), var(--accent-primary));
+      border-radius: 10px;
+      transition: width 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 0 12px var(--accent-primary);
+    }
+
+    /* ═════════════════════════════════════════════════════════════════════
+       BARRA DE DISTRIBUCIÓN PORCENTUAL
+       ═════════════════════════════════════════════════════════════════════ */
+    .dist-bar-wrapper {
+      margin-bottom: 0.5rem;
+    }
+
+    .dist-track {
+      height: 24px;
+      background: #110D1F;
+      border: 1px solid var(--border-glow);
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      margin-bottom: 1rem;
+    }
+
+    .dist-segment {
+      height: 100%;
+      transition: width 0.6s ease;
+      position: relative;
+    }
+
+    .dist-legend-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem 1.2rem;
+    }
+
+    .dist-legend-pill {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-family: var(--font-code);
+      font-size: 0.75rem;
+      color: var(--text-dim);
+    }
+
+    .dist-legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ═════════════════════════════════════════════════════════════════════
+       VERIFICADOR DE LEXEMA INDIVIDUAL (TEST RÁPIDO DFA)
+       ═════════════════════════════════════════════════════════════════════ */
+    .quick-tester-box {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.9rem;
+      align-items: flex-end;
+    }
+
+    .tester-input-wrap {
+      flex: 1;
+      min-width: 240px;
+    }
+
+    input#lexemaInput {
+      width: 100%;
+      background: #110D1F;
+      border: 1px solid var(--border-glow);
+      border-radius: 10px;
+      padding: 0.7rem 1.1rem;
+      color: #FFFFFF;
+      font-family: var(--font-code);
+      font-size: 0.95rem;
+      transition: border-color 0.25s, box-shadow 0.25s;
+    }
+
+    input#lexemaInput:focus {
+      outline: none;
+      border-color: var(--accent-secondary);
+      box-shadow: 0 0 16px rgba(0, 245, 212, 0.2);
+    }
+
+    #resultadoLexemaUnico {
+      margin-top: 1rem;
+      padding: 0.9rem 1.2rem;
+      border-radius: 10px;
+      font-family: var(--font-code);
+      font-size: 0.9rem;
+      display: none;
+    }
+
+    #resultadoLexemaUnico.valid {
+      background: rgba(0, 245, 212, 0.08);
+      border: 1px solid rgba(0, 245, 212, 0.4);
+      color: var(--accent-secondary);
+    }
+
+    #resultadoLexemaUnico.invalid {
+      background: rgba(255, 0, 85, 0.1);
+      border: 1px solid rgba(255, 0, 85, 0.45);
+      color: #FF5588;
+    }
+
+    /* ═════════════════════════════════════════════════════════════════════
+       TABLA DINÁMICA DE CLASIFICACIÓN DE TOKENS
+       ═════════════════════════════════════════════════════════════════════ */
+    .filter-tags-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      margin-bottom: 1.2rem;
+    }
+
+    .filter-btn {
+      font-family: var(--font-code);
+      font-size: 0.73rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      padding: 0.35rem 0.8rem;
+      border-radius: 20px;
+      border: 1px solid;
+      background: transparent;
+      cursor: pointer;
+      opacity: 0.65;
+      transition: all 0.2s ease;
+    }
+
+    .filter-btn:hover, .filter-btn.active {
+      opacity: 1;
+      transform: translateY(-1px);
+    }
+
+    .filter-btn.active {
+      box-shadow: 0 0 12px currentColor;
+    }
+
+    .table-responsive {
+      overflow-x: auto;
+      border: 1px solid var(--border-glow);
+      border-radius: 12px;
+      background: rgba(17, 13, 31, 0.85);
+    }
+
+    table#tokenTable {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--font-code);
+      font-size: 0.86rem;
+      text-align: left;
+    }
+
+    table#tokenTable thead th {
+      background: #171328;
+      color: var(--accent-secondary);
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 0.85rem 1.1rem;
+      border-bottom: 1px solid var(--border-glow);
+      white-space: nowrap;
+    }
+
+    table#tokenTable tbody tr {
+      border-bottom: 1px solid rgba(157, 146, 184, 0.08);
+      transition: background 0.15s;
+    }
+
+    table#tokenTable tbody tr:hover {
+      background: rgba(0, 245, 212, 0.04);
+    }
+
+    table#tokenTable tbody td {
+      padding: 0.7rem 1.1rem;
+      vertical-align: middle;
+    }
+
+    /* Fila con Error Léxico Resaltada en Rojo Neón */
+    table#tokenTable tbody tr.row-lexical-error {
+      background: rgba(255, 0, 85, 0.09) !important;
+      border-left: 3px solid var(--color-error);
+    }
+
+    table#tokenTable tbody tr.row-lexical-error:hover {
+      background: rgba(255, 0, 85, 0.16) !important;
+    }
+
+    .badge-error {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      background: rgba(255, 0, 85, 0.18);
+      color: #FF5588;
+      border: 1px solid rgba(255, 0, 85, 0.5);
+      border-radius: 14px;
+      padding: 0.22rem 0.75rem;
+      font-size: 0.74rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      box-shadow: 0 0 10px rgba(255, 0, 85, 0.3);
+    }
+
+    .badge-token {
+      display: inline-block;
+      padding: 0.2rem 0.65rem;
+      border-radius: 14px;
+      font-size: 0.74rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+
+    .pos-chip {
+      background: rgba(0, 245, 212, 0.08);
+      border: 1px solid rgba(0, 245, 212, 0.25);
+      color: var(--accent-secondary);
+      border-radius: 5px;
+      padding: 0.15rem 0.5rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 3.5rem 1rem;
+      color: var(--text-dim);
+      font-size: 0.95rem;
+    }
+
+    .empty-state-icon {
+      font-size: 2.8rem;
+      display: block;
+      margin-bottom: 0.8rem;
+      opacity: 0.6;
+    }
+
+    /* ═════════════════════════════════════════════════════════════════════
+       MODAL DIDÁCTICO: FUNDAMENTOS DEL ANÁLISIS LÉXICO VS SINTÁCTICO
+       ═════════════════════════════════════════════════════════════════════ */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(10, 8, 24, 0.88);
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+
+    .modal-overlay.open {
+      display: flex;
+    }
+
+    .modal-container {
+      background: var(--card-bg);
+      border: 1px solid var(--accent-secondary);
+      border-radius: 20px;
+      max-width: 900px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+      padding: 2.4rem;
+      position: relative;
+      box-shadow: 0 0 50px rgba(0, 245, 212, 0.18), 0 10px 40px rgba(0, 0, 0, 0.7);
+    }
+
+    .modal-container::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+      border-radius: 20px 20px 0 0;
+    }
+
+    .modal-close-btn {
+      position: absolute;
+      top: 1.2rem;
+      right: 1.2rem;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: rgba(255, 0, 127, 0.12);
+      border: 1px solid rgba(255, 0, 127, 0.4);
+      color: var(--accent-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 1.1rem;
+      transition: all 0.2s ease;
+    }
+
+    .modal-close-btn:hover {
+      background: rgba(255, 0, 127, 0.28);
+      box-shadow: 0 0 15px var(--accent-primary);
+      transform: scale(1.05);
+    }
+
+    .modal-title {
+      font-family: var(--font-title);
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: var(--accent-secondary);
+      letter-spacing: 0.06em;
+      margin-bottom: 1.5rem;
+    }
+
+    .qa-card {
+      background: rgba(17, 13, 31, 0.65);
+      border: 1px solid rgba(0, 245, 212, 0.18);
+      border-left: 4px solid var(--accent-primary);
+      border-radius: 12px;
+      padding: 1.3rem 1.5rem;
+      margin-bottom: 1.4rem;
+    }
+
+    .qa-card.highlight {
+      border-left-color: var(--accent-secondary);
+    }
+
+    .qa-title {
+      font-family: var(--font-title);
+      font-size: 0.98rem;
+      font-weight: 700;
+      color: var(--accent-secondary);
+      letter-spacing: 0.05em;
+      margin-bottom: 0.65rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .qa-body {
+      font-size: 0.94rem;
+      color: var(--text-main);
+      line-height: 1.7;
+    }
+
+    .qa-code-block {
+      background: #0B0815;
+      border: 1px solid rgba(0, 245, 212, 0.2);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      font-family: var(--font-code);
+      font-size: 0.84rem;
+      color: var(--color-id);
+      margin: 0.8rem 0;
+      overflow-x: auto;
+    }
+
+    /* ═════════════════════════════════════════════════════════════════════
+       POPUP NOTICIA DEL CASO DIDÁCTICO "20+*5"
+       ═════════════════════════════════════════════════════════════════════ */
+    .popup-dialog {
+      position: fixed;
+      inset: 0;
+      background: rgba(10, 8, 24, 0.88);
+      backdrop-filter: blur(8px);
+      z-index: 1100;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+
+    .popup-dialog.open {
+      display: flex;
+    }
+
+    .popup-inner {
+      background: var(--card-bg);
+      border: 1px solid var(--color-error);
+      border-radius: 18px;
+      max-width: 620px;
+      width: 100%;
+      padding: 2.2rem;
+      position: relative;
+      box-shadow: 0 0 50px rgba(255, 0, 85, 0.25);
+    }
+
+    .popup-inner::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--color-error), var(--accent-primary));
+      border-radius: 18px 18px 0 0;
+    }
+
+    /* Toast Flotante */
+    #notificationToast {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      background: var(--card-bg);
+      border: 1px solid var(--accent-secondary);
+      border-radius: 10px;
+      padding: 0.9rem 1.4rem;
+      font-family: var(--font-code);
+      font-size: 0.88rem;
+      color: var(--accent-secondary);
+      box-shadow: 0 0 25px rgba(0, 245, 212, 0.3);
+      z-index: 2000;
+      transform: translateY(150%);
+      opacity: 0;
+      transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s;
+      max-width: 380px;
+      pointer-events: none;
+    }
+
+    #notificationToast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    #notificationToast.toast-error {
+      border-color: var(--color-error);
+      color: #FF5588;
+      box-shadow: 0 0 25px rgba(255, 0, 85, 0.35);
+    }
+
+    /* Footer Institucional */
+    footer {
+      text-align: center;
+      padding: 2.2rem 1rem 0;
+      border-top: 1px solid rgba(0, 245, 212, 0.15);
+      margin-top: 3rem;
+      color: var(--text-dim);
+      font-family: var(--font-code);
+      font-size: 0.82rem;
+    }
+
+    footer span.highlight {
+      color: var(--accent-secondary);
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Toast de Notificaciones -->
+  <div id="notificationToast"></div>
+
+  <div class="container">
+
+    <!-- ═════════════════════════════════════════════════════════════════
+         HEADER & METADATOS INSTITUCIONALES
+         ═════════════════════════════════════════════════════════════════ -->
+    <header>
+      <div class="header-top">
+        <div class="badge-pill-group">
+          <span class="badge-pill purple">Autómatas I</span>
+          <span class="badge-pill primary">Actividad 4</span>
+          <span class="badge-pill secondary">Scanner DFA Multi-Lenguaje</span>
+        </div>
+      </div>
+
+      <h1 class="project-title">Fernando Vidal Delgado - Analizador de Errores Léxicos</h1>
+      <p class="project-subtitle">Motor Determinista (DFA) con Detección de Errores Léxicos y Diferenciación Sintáctica</p>
+
+      <div class="metadata-banner">
+        <div class="meta-box">
+          <span class="meta-label">Estudiante</span>
+          <span class="meta-value">Fernando Vidal Delgado</span>
+        </div>
+        <div class="meta-box">
+          <span class="meta-label">No. de Control</span>
+          <span class="meta-value">2320905</span>
+        </div>
+        <div class="meta-box">
+          <span class="meta-label">Asignatura</span>
+          <span class="meta-value">Autómatas I (Act. 4)</span>
+        </div>
+        <div class="meta-box">
+          <span class="meta-label">Cátedra</span>
+          <span class="meta-value">Mtro. Diego Spíndola</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="main-layout">
+
+      <!-- ═════════════════════════════════════════════════════════════
+           SECCIÓN PRINCIPAL: EDITOR Y CONTROLES
+           ═════════════════════════════════════════════════════════════ -->
+      <div class="card">
+        <div class="card-title">💻 Entorno de Análisis Léxico</div>
+
+        <!-- Controles: Selector de Lenguaje + Presets Obligatorios -->
+        <div class="controls-panel">
+          <div class="lang-selector-group">
+            <label class="input-label" for="lenguajeTarget">Lenguaje Objetivo:</label>
+            <select id="lenguajeTarget" onchange="window.cambiarLenguaje()">
+              <option value="python">🐍 Python</option>
+              <option value="csharp">🔷 C#</option>
+              <option value="kotlin">💜 Kotlin</option>
+            </select>
+          </div>
+
+          <div class="presets-group">
+            <span class="input-label">Cargar Casos de Prueba:</span>
+            <button class="btn btn-secondary btn-sm" onclick="window.cargarEjemploPython()">📂 Ejemplo Python</button>
+            <button class="btn btn-secondary btn-sm" onclick="window.cargarEjemploCSharp()">📂 Ejemplo C#</button>
+            <button class="btn btn-secondary btn-sm" onclick="window.cargarEjemploKotlin()">📂 Ejemplo Kotlin</button>
+            <button class="btn btn-special-case btn-sm" onclick="window.cargarCaso20mas5()">⚠️ Probar Caso 20+*5</button>
+            <button class="btn btn-outline btn-sm" onclick="window.limpiarEditor()">🗑 Limpiar</button>
+          </div>
+        </div>
+
+        <!-- Editor de Código con Tracker de Posición -->
+        <div class="editor-container">
+          <div class="editor-status-bar" id="editorPosTracker">L01:C01</div>
+          <textarea id="codigoInput" spellcheck="false"
+            placeholder="# Escribe o pega código aquí para iniciar el escaneo léxico...&#10;# O haz clic en cualquiera de los botones de ejemplo superior."
+            onkeyup="window.actualizarPosicionCursor(event)"
+            onclick="window.actualizarPosicionCursor(event)"></textarea>
+        </div>
+
+        <!-- Banner de Diagnóstico del Escaneo -->
+        <div id="bannerDiagnostico"></div>
+
+        <!-- Botones de Acción y Exportación de Evidencias -->
+        <div class="editor-actions-row">
+          <button class="btn btn-primary btn-lg" onclick="window.analizarCodigoCompleto()">
+            ⚡ Ejecutar Análisis Léxico
+          </button>
+          <div style="display:flex; gap:0.6rem; flex-wrap:wrap;">
+            <button class="btn btn-export btn-sm" onclick="window.exportarCSV()">📥 Exportar Reporte CSV</button>
+            <button class="btn btn-export btn-sm" onclick="window.exportarJSON()">📄 Exportar JSON</button>
+            <button class="btn btn-secondary btn-sm" onclick="window.abrirModalDidactico()">🧠 Fundamentos Léxico vs Sintáctico</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═════════════════════════════════════════════════════════════
+           MÉTRICAS EN TIEMPO REAL (4 CARDS REQUERIDAS)
+           ═════════════════════════════════════════════════════════════ -->
+      <div class="metrics-grid">
+        <div class="metric-card total">
+          <div class="metric-header">
+            <span class="metric-label">Total Tokens</span>
+            <span class="metric-icon">🔢</span>
+          </div>
+          <div class="metric-value" id="valTotalTokens">0</div>
+          <span style="font-size:0.75rem; color:var(--text-dim); font-family:var(--font-code);">Lexemas detectados</span>
+        </div>
+
+        <div class="metric-card valid">
+          <div class="metric-header">
+            <span class="metric-label">Tokens Válidos</span>
+            <span class="metric-icon">✅</span>
+          </div>
+          <div class="metric-value" id="valTokensValidos">0</div>
+          <span style="font-size:0.75rem; color:var(--text-dim); font-family:var(--font-code);">Conformes a la gramática</span>
+        </div>
+
+        <div class="metric-card errors">
+          <div class="metric-header">
+            <span class="metric-label">Errores Léxicos</span>
+            <span class="metric-icon">🚨</span>
+          </div>
+          <div class="metric-value" id="valErroresLexicos">0</div>
+          <span style="font-size:0.75rem; color:var(--text-dim); font-family:var(--font-code);">Fuera del alfabeto / inválidos</span>
+        </div>
+
+        <div class="metric-card rate">
+          <div class="metric-header">
+            <span class="metric-label">Tasa de Aprobación</span>
+            <span class="metric-icon">📊</span>
+          </div>
+          <div class="metric-value" id="valTasaAprobacion">—</div>
+          <div class="metric-progress-wrap">
+            <div class="metric-progress-fill" id="barraTasaAprobacion"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═════════════════════════════════════════════════════════════
+           BARRA DE DISTRIBUCIÓN PORCENTUAL DE CATEGORÍAS
+           ═════════════════════════════════════════════════════════════ -->
+      <div class="card">
+        <div class="card-title">📊 Distribución Porcentual de Categorías</div>
+        <div class="dist-bar-wrapper">
+          <div class="dist-track" id="distribucionBarra"></div>
+          <div class="dist-legend-container" id="distribucionLeyenda">
+            <span style="color:var(--text-dim); font-size:0.8rem; font-family:var(--font-code);">
+              — Ejecuta el análisis para visualizar la distribución proporcional de lexemas —
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═════════════════════════════════════════════════════════════
+           VERIFICADOR DE LEXEMA INDIVIDUAL (TEST RÁPIDO DFA)
+           ═════════════════════════════════════════════════════════════ -->
+      <div class="card">
+        <div class="card-title">🔍 Clasificador de Lexema Individual</div>
+        <div class="quick-tester-box">
+          <div class="tester-input-wrap">
+            <label class="input-label" for="lexemaInput">Lexema a Clasificar:</label>
+            <input type="text" id="lexemaInput" placeholder="Ej: def, 99variable, $precio, 3.14.15, @class, 20, +"
+              onkeydown="if(event.key==='Enter') window.clasificarLexemaUnico()" />
+          </div>
+          <button class="btn btn-secondary" onclick="window.clasificarLexemaUnico()">🔎 Clasificar Lexema</button>
+        </div>
+        <div id="resultadoLexemaUnico"></div>
+      </div>
+
+      <!-- ═════════════════════════════════════════════════════════════
+           TABLA DINÁMICA DE CLASIFICACIÓN DE TOKENS
+           ═════════════════════════════════════════════════════════════ -->
+      <div class="card">
+        <div class="card-title">🗂 Tabla Dinámica de Clasificación de Tokens</div>
+
+        <!-- Botones de Filtrado por Categoría -->
+        <div class="filter-tags-group">
+          <button class="filter-btn active" style="color:var(--accent-secondary); border-color:var(--accent-secondary);"
+            onclick="window.filtrarTablaTokens('TODOS', this)">Todos</button>
+          <button class="filter-btn" style="color:var(--color-reserved); border-color:var(--color-reserved);"
+            onclick="window.filtrarTablaTokens('RESERVADA', this)">Reservadas</button>
+          <button class="filter-btn" style="color:var(--color-id); border-color:var(--color-id);"
+            onclick="window.filtrarTablaTokens('IDENTIFICADOR', this)">Identificadores</button>
+          <button class="filter-btn" style="color:var(--color-number); border-color:var(--color-number);"
+            onclick="window.filtrarTablaTokens('NUMEROS', this)">Números</button>
+          <button class="filter-btn" style="color:var(--color-string); border-color:var(--color-string);"
+            onclick="window.filtrarTablaTokens('CADENA', this)">Cadenas</button>
+          <button class="filter-btn" style="color:var(--color-op-arith); border-color:var(--color-op-arith);"
+            onclick="window.filtrarTablaTokens('OPERADORES', this)">Operadores</button>
+          <button class="filter-btn" style="color:var(--color-delimiter); border-color:var(--color-delimiter);"
+            onclick="window.filtrarTablaTokens('DELIMITADOR', this)">Delimitadores</button>
+          <button class="filter-btn" style="color:var(--color-comment); border-color:var(--color-comment);"
+            onclick="window.filtrarTablaTokens('COMENTARIO', this)">Comentarios</button>
+          <button class="filter-btn" style="color:var(--color-error); border-color:var(--color-error);"
+            onclick="window.filtrarTablaTokens('ERROR_LEXICO', this)">🚨 Errores Léxicos</button>
+        </div>
+
+        <!-- Tabla de Datos -->
+        <div class="table-responsive">
+          <table id="tokenTable">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Lexema</th>
+                <th>Categoría Léxica</th>
+                <th>Posición (Línea:Col)</th>
+                <th>Descripción / Diagnóstico</th>
+              </tr>
+            </thead>
+            <tbody id="tokenTableBody">
+              <tr>
+                <td colspan="5" class="empty-state">
+                  <span class="empty-state-icon">🔬</span>
+                  Ingresa o carga código y presiona <strong>⚡ Ejecutar Análisis Léxico</strong> para poblar la tabla.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /main-layout -->
+
+    <!-- ═════════════════════════════════════════════════════════════
+         FOOTER INSTITUCIONAL
+         ═════════════════════════════════════════════════════════════ -->
+    <footer>
+      <p>Proyecto: <span class="highlight">Fernando Vidal Delgado - Analizador de Errores Léxicos</span> · No. Control: <span class="highlight">2320905</span></p>
+      <p style="margin-top:0.4rem;">Materia: <span class="highlight">Autómatas I (Actividad 4)</span> · Cátedra: <span class="highlight">Mtro. Diego Spíndola</span> · Instituto Tecnológico</p>
+    </footer>
+
+  </div><!-- /container -->
+
+  <!-- ═════════════════════════════════════════════════════════════
+       MODAL DIDÁCTICO: FUNDAMENTOS DEL ANÁLISIS LÉXICO VS SINTÁCTICO
+       (5 Puntos Exigidos en la Rúbrica)
+       ═════════════════════════════════════════════════════════════ -->
+  <div class="modal-overlay" id="modalDidactico" onclick="if(event.target===this) window.cerrarModalDidactico()">
+    <div class="modal-container">
+      <button class="modal-close-btn" onclick="window.cerrarModalDidactico()">✕</button>
+      <div class="modal-title">🧠 Fundamentos del Análisis Léxico vs. Sintáctico</div>
+
+      <!-- Pregunta 1 -->
+      <div class="qa-card highlight">
+        <div class="qa-title">
+          <span>① ¿Qué es un Error Léxico? (Definición Formal)</span>
+        </div>
+        <div class="qa-body">
+          Un <strong>error léxico</strong> es una anomalía detectada durante la primera fase de compilación en la que el analizador léxico (scanner) encuentra una subsecuencia de caracteres del código fuente que <strong>no coincide con ninguna expresión regular</strong> ni patrón formal definido en el alfabeto $\Sigma$ del lenguaje objetivo.
+          <div class="qa-code-block">
+            Definición Teórica Formal:<br>
+            Sea &Sigma; el alfabeto admisible del lenguaje L. Un lexema w &isin; &Sigma;* constituye un error léxico si y solo si:<br>
+            &forall; Token T &isin; Tokens(L), w &notin; L(ExpresiónRegular(T)).
+          </div>
+          <em>Manifestaciones típicas:</em> Símbolos ajenos al alfabeto (ej. <code>$</code>, <code>~</code>, <code>`</code>), identificadores que inician con dígitos (ej. <code>99variable</code>), números decimales con múltiples puntos (ej. <code>3.14.15</code>), o cadenas literales no cerradas antes del fin de línea.
+        </div>
+      </div>
+
+      <!-- Pregunta 2 -->
+      <div class="qa-card">
+        <div class="qa-title">
+          <span>② Análisis del Caso '@' como Error Léxico</span>
+          <button class="btn btn-secondary btn-sm" onclick="window.probarCasoArroba()">▶ Probar Caso '@'</button>
+        </div>
+        <div class="qa-body">
+          El símbolo <code>@</code> exhibe comportamientos léxicos radicalmente distintos según el lenguaje seleccionado:
+          <ul style="margin: 0.6rem 0 0.6rem 1.4rem; line-height: 1.7;">
+            <li><strong>En Python 🐍:</strong> <code>@</code> de forma aislada o dentro de una expresión de variables no pertenece al alfabeto de operadores estándar ni identificadores, siendo clasificado inmediatamente como <strong>ERROR LÉXICO</strong>.</li>
+            <li><strong>En Kotlin 💜:</strong> Se utiliza exclusivamente para anotaciones (ej. <code>@JvmStatic</code>). Cuando se intenta usar en la declaración de una variable como <code>val @nombre = "Kotlin"</code>, el símbolo <code>@</code> es inválido para el nombre del identificador y es marcado como <strong>ERROR LÉXICO</strong>.</li>
+            <li><strong>En C# 🔷:</strong> Funciona como el prefijo especial <em>Verbatim Identifier</em>. Si va inmediatamente seguido de una palabra reservada o identificador (ej. <code>@class</code>, <code>@variable</code>), es un <strong>token VÁLIDO</strong>. Sin embargo, si aparece de forma aislada (ej. <code>@</code> solo), el autómata no encuentra transición válida y emite un <strong>ERROR LÉXICO</strong>.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Pregunta 3 -->
+      <div class="qa-card highlight">
+        <div class="qa-title">
+          <span>③ Análisis Exhaustivo del Caso "20+*5": ¿Léxico o Sintáctico?</span>
+          <button class="btn btn-special-case btn-sm" onclick="window.cargarCaso20mas5()">⚠️ Probar "20+*5"</button>
+        </div>
+        <div class="qa-body">
+          La secuencia <code>20+*5</code> <strong>NO CONTIENE ABSOLUTAMENTE NINGÚN ERROR LÉXICO</strong>.
+          <p style="margin-top:0.5rem;">El analizador léxico escanea el flujo de caracteres de izquierda a derecha reconociendo tokens atómicos de forma independiente:</p>
+          <div class="qa-code-block">
+            1. '20' &rarr; NUMERO_ENTERO       &check; [Válido: satisface /^[0-9]+$/]<br>
+            2. '+'  &rarr; OPERADOR_ARITMETICO  &check; [Válido: pertenece al conjunto de operadores]<br>
+            3. '*'  &rarr; OPERADOR_ARITMETICO  &check; [Válido: pertenece al conjunto de operadores]<br>
+            4. '5'  &rarr; NUMERO_ENTERO       &check; [Válido: satisface /^[0-9]+$/]
+          </div>
+          <strong>¿Por qué falla el código entonces?</strong><br>
+          El error es <strong>ESTRICTAMENTE SINTÁCTICO</strong>. El analizador sintáctico (Parser) aplica las reglas de la Gramática Libre de Contexto (GLC) $E \to E + E \mid E * E \mid \text{num}$. Dicha gramática exige obligatoriamente un operando intermedio entre dos operadores binarios. La presencia de <code>+ *</code> contiguos viola la regla sintáctica de precedencia y formación de árboles de derivación, pero a nivel léxico, la tasa de aprobación de tokens es <strong>100%</strong>.
+        </div>
+      </div>
+
+      <!-- Pregunta 4 -->
+      <div class="qa-card">
+        <div class="qa-title">
+          <span>④ Autómatas Finitos Deterministas (DFA) y Expresiones Regulares</span>
+        </div>
+        <div class="qa-body">
+          El análisis léxico se fundamenta en la equivalencia formal entre <strong>Expresiones Regulares (ER)</strong> y <strong>Autómatas Finitos Deterministas (DFA)</strong>:
+          <div class="qa-code-block">
+            M = (Q, &Sigma;, &delta;, q0, F)<br>
+            - Q: Conjunto finito de estados del scanner.<br>
+            - &Sigma;: Alfabeto de caracteres de entrada.<br>
+            - &delta;: Función de transición &delta;: Q &times; &Sigma; &rarr; Q.<br>
+            - q0: Estado inicial de lectura.<br>
+            - F: Conjunto de estados de aceptación (identificador, entero, operador, etc.).
+          </div>
+          Se implementa la regla de <strong>Máxima Coincidencia (Longest Match / Maximal Munch)</strong>: el DFA consume la mayor cantidad continua de caracteres que continúen satisfaciendo un estado de aceptación antes de emitir el token y retornar al estado $q_0$.
+        </div>
+      </div>
+
+      <!-- Pregunta 5 -->
+      <div class="qa-card">
+        <div class="qa-title">
+          <span>⑤ Metodología de Comprobación y Pruebas Unitarias</span>
+        </div>
+        <div class="qa-body">
+          Para garantizar la fiabilidad del compilador ante errores léxicos, se emplean tres pilares metodológicos:
+          <ul style="margin: 0.6rem 0 0.6rem 1.4rem; line-height: 1.7;">
+            <li><strong>Modo Pánico (Panic Mode):</strong> Al encontrar un carácter no reconocible, el scanner emite el error léxico con sus coordenadas exactas (Línea y Columna) y avanza un carácter, permitiendo diagnosticar la totalidad de errores del archivo en una sola pasada.</li>
+            <li><strong>Batería de Pruebas Unitarias:</strong> Validación automática de casos límite: identificadores con prefijos numéricos (<code>99var</code>), números con múltiples separadores (<code>3.14.15</code>), y cadenas no terminadas antes del salto de línea.</li>
+            <li><strong>Aislamiento de Fases:</strong> Comprobación de que expresiones sintácticamente inválidas como <code>20+*5</code> son aprobadas con 0 errores por el scanner, validando la frontera teórica entre el analizador léxico y el parser sintáctico.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div style="text-align:center; margin-top:1.5rem;">
+        <button class="btn btn-primary" onclick="window.cerrarModalDidactico()">Entendido — Cerrar Fundamentos</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═════════════════════════════════════════════════════════════
+       POPUP DIALOG: NOTA DIDÁCTICA DEL CASO 20+*5
+       ═════════════════════════════════════════════════════════════ -->
+  <div class="popup-dialog" id="popupCaso20mas5" onclick="if(event.target===this) window.cerrarPopupCaso20mas5()">
+    <div class="popup-inner">
+      <div style="display:flex; align-items:center; gap:0.6rem; margin-bottom:1rem;">
+        <span style="font-size:1.8rem;">⚠️</span>
+        <h3 style="font-family:var(--font-title); color:var(--color-error); font-size:1.15rem; letter-spacing:0.06em;">
+          Caso 20+*5: Demostración Léxica vs. Sintáctica
+        </h3>
+      </div>
+      <p style="font-size:0.92rem; color:var(--text-main); line-height:1.65; margin-bottom:1rem;">
+        Al cargar esta prueba, notarás que el <strong>analizador léxico reportará 0 ERRORES LÉXICOS (100% de Aprobación)</strong>:
+      </p>
+      <div class="qa-code-block" style="color:var(--accent-secondary);">
+        int        &rarr; PALABRA RESERVADA &check;<br>
+        resultado  &rarr; IDENTIFICADOR &check;<br>
+        =          &rarr; OPERADOR ASIGNACIÓN &check;<br>
+        20         &rarr; NÚMERO ENTERO &check;<br>
+        +          &rarr; OPERADOR ARITMÉTICO &check;<br>
+        *          &rarr; OPERADOR ARITMÉTICO &check;<br>
+        5          &rarr; NÚMERO ENTERO &check;<br>
+        ;          &rarr; DELIMITADOR &check;
+      </div>
+      <p style="font-size:0.88rem; color:var(--text-dim); line-height:1.6;">
+        Esto comprueba formalmente que <strong>"20+*5" no es un error léxico</strong>; cada token es individualmente válido. El error se producirá exclusivamente en la fase de <strong>análisis sintáctico</strong>.
+      </p>
+      <div style="display:flex; justify-content:flex-end; gap:0.8rem; margin-top:1.5rem;">
+        <button class="btn btn-outline btn-sm" onclick="window.cerrarPopupCaso20mas5()">Cancelar</button>
+        <button class="btn btn-primary btn-sm" onclick="window.ejecutarCargaCaso20mas5()">Cargar y Analizar Código</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═════════════════════════════════════════════════════════════
+       MOTOR JAVASCRIPT: DFA SCANNER, RECONOCEDOR Y MANEJADORES
+       ═════════════════════════════════════════════════════════════ -->
+  <script>
+    'use strict';
+
+    /* ─────────────────────────────────────────────────────────────
+       CONFIGURACIÓN DE GRAMÁTICAS Y ALFABETOS POR LENGUAJE
+       ───────────────────────────────────────────────────────────── */
+    const CONFIG_LENGUAJES = {
+      python: {
+        nombre: 'Python 🐍',
+        reservadas: [
+          'def', 'class', 'if', 'elif', 'else', 'while', 'for', 'in', 'import',
+          'from', 'return', 'True', 'False', 'None', 'lambda', 'pass', 'try',
+          'except', 'with', 'as', 'async', 'await', 'break', 'continue',
+          'del', 'global', 'nonlocal', 'raise', 'yield', 'finally'
+        ],
+        operadores: {
+          aritmeticos: ['+', '-', '*', '/', '//', '%', '**'],
+          comparacion: ['==', '!=', '<=', '>=', '<', '>'],
+          asignacion: ['=', '+=', '-=', '*=', '/=', '//=', '%=', '**='],
+          logicos: ['and', 'or', 'not', 'is']
+        },
+        delimitadores: ['(', ')', '{', '}', '[', ']', ',', ';', ':'],
+        prefijoVerbatimCSharp: false,
+        comentarioLinea: '#'
+      },
+      csharp: {
+        nombre: 'C# 🔷',
+        reservadas: [
+          'namespace', 'using', 'class', 'struct', 'static', 'void', 'int',
+          'float', 'double', 'string', 'bool', 'var', 'if', 'else', 'foreach',
+          'for', 'while', 'return', 'public', 'private', 'protected', 'async',
+          'await', 'new', 'null', 'true', 'false', 'base', 'this', 'override',
+          'virtual', 'abstract', 'sealed', 'readonly', 'const', 'enum',
+          'interface', 'try', 'catch', 'finally', 'throw', 'switch', 'case',
+          'break', 'continue', 'default', 'goto', 'do', 'out', 'ref', 'in'
+        ],
+        operadores: {
+          aritmeticos: ['+', '-', '*', '/', '%', '++', '--'],
+          comparacion: ['==', '!=', '<=', '>=', '<', '>'],
+          asignacion: ['=', '+=', '-=', '*=', '/=', '%=', '?.'],
+          logicos: ['&&', '||', '!']
+        },
+        delimitadores: ['(', ')', '{', '}', '[', ']', ',', ';', ':'],
+        prefijoVerbatimCSharp: true,
+        comentarioLinea: '//'
+      },
+      kotlin: {
+        nombre: 'Kotlin 💜',
+        reservadas: [
+          'fun', 'val', 'var', 'class', 'object', 'package', 'import', 'if',
+          'else', 'when', 'for', 'while', 'return', 'null', 'true', 'false',
+          'interface', 'abstract', 'override', 'open', 'internal', 'private',
+          'public', 'protected', 'data', 'sealed', 'enum', 'this', 'super',
+          'throw', 'try', 'catch', 'finally', 'break', 'continue', 'is', 'as', 'in'
+        ],
+        operadores: {
+          aritmeticos: ['+', '-', '*', '/', '%', '++', '--', '..'],
+          comparacion: ['===', '!==', '==', '!=', '<=', '>=', '<', '>'],
+          asignacion: ['=', '+=', '-=', '*=', '/=', '?.', '?:'],
+          logicos: ['&&', '||', '!']
+        },
+        delimitadores: ['(', ')', '{', '}', '[', ']', ',', ';', ':'],
+        prefijoVerbatimCSharp: false,
+        comentarioLinea: '//'
+      }
+    };
+
+    /* Metadatos de Color y Etiqueta por Categoría */
+    const META_CATEGORIAS = {
+      'RESERVADA':            { color: '#7B2CBF', etiqueta: 'Palabra Reservada',   icono: '🔑' },
+      'IDENTIFICADOR':        { color: '#FFE600', etiqueta: 'Identificador',       icono: '🏷️' },
+      'NUMERO_ENTERO':        { color: '#F15BB5', etiqueta: 'Número Entero',       icono: '🔢' },
+      'NUMERO_DECIMAL':       { color: '#F15BB5', etiqueta: 'Número Decimal',      icono: '📐' },
+      'CADENA':               { color: '#00F5D4', etiqueta: 'Cadena de Texto',     icono: '📜' },
+      'OPERADOR_ARITMETICO':  { color: '#00BBF9', etiqueta: 'Op. Aritmético',      icono: '➕' },
+      'OPERADOR_COMPARACION': { color: '#9B5DE5', etiqueta: 'Op. Comparación',     icono: '⚖️' },
+      'OPERADOR_ASIGNACION':  { color: '#FEE440', etiqueta: 'Op. Asignación',      icono: '📌' },
+      'OPERADOR_LOGICO':      { color: '#00BBF9', etiqueta: 'Op. Lógico',          icono: '💡' },
+      'DELIMITADOR':          { color: '#A29BFE', etiqueta: 'Delimitador',         icono: '🔘' },
+      'COMENTARIO':           { color: '#5C677D', etiqueta: 'Comentario',          icono: '💬' },
+      'ERROR_LEXICO':         { color: '#FF0055', etiqueta: 'ERROR LÉXICO',        icono: '🚨' }
+    };
+
+    /* Variables de Estado Global */
+    let tokensDetectados = [];
+    let filtroCategoriaActual = 'TODOS';
+
+    /* ─────────────────────────────────────────────────────────────
+       MOTOR SCANNER DFA (AUTÓMATA FINITO DETERMINISTA)
+       Escaneo carácter por carácter con conteo estricto de LXX:CY
+       ───────────────────────────────────────────────────────────── */
+    function ejecutarEscanerDFA(codigoFuente, claveLenguaje) {
+      const config = CONFIG_LENGUAJES[claveLenguaje];
+      const tokens = [];
+      const lineas = codigoFuente.split('\n');
+
+      let enComentarioMultilinea = false;
+      let delimitadorFinComentario = '';
+      let bufferComentarioMulti = '';
+      let lineaInicioComentario = 0;
+      let colInicioComentario = 0;
+
+      for (let i = 0; i < lineas.length; i++) {
+        const numLinea = i + 1;
+        const textoLinea = lineas[i];
+        let col = 0;
+
+        // Recuperación de comentario multilínea abierto de líneas anteriores
+        if (enComentarioMultilinea) {
+          const idxFin = textoLinea.indexOf(delimitadorFinComentario);
+          if (idxFin === -1) {
+            bufferComentarioMulti += '\n' + textoLinea;
+            continue;
+          } else {
+            bufferComentarioMulti += '\n' + textoLinea.substring(0, idxFin + delimitadorFinComentario.length);
+            tokens.push({
+              lexema: bufferComentarioMulti,
+              categoria: 'COMENTARIO',
+              linea: lineaInicioComentario,
+              columna: colInicioComentario,
+              descripcion: 'Comentario multilínea / bloque documental'
+            });
+            enComentarioMultilinea = false;
+            col = idxFin + delimitadorFinComentario.length;
+          }
+        }
+
+        while (col < textoLinea.length) {
+          // 1. Ignorar espacios en blanco y tabulaciones (avanzar DFA)
+          if (/\s/.test(textoLinea[col])) {
+            col++;
+            continue;
+          }
+
+          const restoLinea = textoLinea.substring(col);
+          const colInicioToken = col + 1;
+
+          // 2. Comentarios de una sola línea
+          if (claveLenguaje === 'python' && restoLinea.startsWith('#')) {
+            tokens.push({
+              lexema: restoLinea,
+              categoria: 'COMENTARIO',
+              linea: numLinea,
+              columna: colInicioToken,
+              descripcion: 'Comentario de línea Python (#)'
+            });
+            col = textoLinea.length;
+            continue;
+          }
+
+          if ((claveLenguaje === 'csharp' || claveLenguaje === 'kotlin') && restoLinea.startsWith('//')) {
+            tokens.push({
+              lexema: restoLinea,
+              categoria: 'COMENTARIO',
+              linea: numLinea,
+              columna: colInicioToken,
+              descripcion: 'Comentario de línea C#/Kotlin (//)'
+            });
+            col = textoLinea.length;
+            continue;
+          }
+
+          // 3. Comentarios multilínea en C# y Kotlin (/* ... */)
+          if ((claveLenguaje === 'csharp' || claveLenguaje === 'kotlin') && restoLinea.startsWith('/*')) {
+            const idxCierre = restoLinea.indexOf('*/', 2);
+            if (idxCierre !== -1) {
+              const textoComentario = restoLinea.substring(0, idxCierre + 2);
+              tokens.push({
+                lexema: textoComentario,
+                categoria: 'COMENTARIO',
+                linea: numLinea,
+                columna: colInicioToken,
+                descripcion: 'Comentario multilínea cerrado en línea'
+              });
+              col += idxCierre + 2;
+            } else {
+              enComentarioMultilinea = true;
+              delimitadorFinComentario = '*/';
+              bufferComentarioMulti = restoLinea;
+              lineaInicioComentario = numLinea;
+              colInicioComentario = colInicioToken;
+              col = textoLinea.length;
+            }
+            continue;
+          }
+
+          // 4. Comentarios multilínea / Docstrings triples en Python (""" o ''')
+          if (claveLenguaje === 'python' && (restoLinea.startsWith('"""') || restoLinea.startsWith("'''"))) {
+            const delimTriple = restoLinea.substring(0, 3);
+            const idxCierreTriple = restoLinea.indexOf(delimTriple, 3);
+            if (idxCierreTriple !== -1) {
+              const textoDoc = restoLinea.substring(0, idxCierreTriple + 3);
+              tokens.push({
+                lexema: textoDoc,
+                categoria: 'COMENTARIO',
+                linea: numLinea,
+                columna: colInicioToken,
+                descripcion: 'Comentario multilínea / Docstring Python (' + delimTriple + ')'
+              });
+              col += idxCierreTriple + 3;
+            } else {
+              enComentarioMultilinea = true;
+              delimitadorFinComentario = delimTriple;
+              bufferComentarioMulti = restoLinea;
+              lineaInicioComentario = numLinea;
+              colInicioComentario = colInicioToken;
+              col = textoLinea.length;
+            }
+            continue;
+          }
+
+          // 5. Cadenas de Texto Literales (Comillas simples y dobles)
+          if (textoLinea[col] === '"' || textoLinea[col] === "'") {
+            const delimComilla = textoLinea[col];
+            let pCierre = col + 1;
+            let cerrada = false;
+
+            while (pCierre < textoLinea.length) {
+              if (textoLinea[pCierre] === '\\') {
+                pCierre += 2; // Brincar carácter escapado
+                continue;
+              }
+              if (textoLinea[pCierre] === delimComilla) {
+                cerrada = true;
+                break;
+              }
+              pCierre++;
+            }
+
+            if (cerrada) {
+              const cad = textoLinea.substring(col, pCierre + 1);
+              tokens.push({
+                lexema: cad,
+                categoria: 'CADENA',
+                linea: numLinea,
+                columna: colInicioToken,
+                descripcion: 'Cadena de texto literal delimitada por ' + delimComilla
+              });
+              col = pCierre + 1;
+            } else {
+              // ERROR LÉXICO: Cadena no cerrada antes del salto de línea
+              const errCad = textoLinea.substring(col);
+              tokens.push({
+                lexema: errCad,
+                categoria: 'ERROR_LEXICO',
+                linea: numLinea,
+                columna: colInicioToken,
+                descripcion: "Cadena de texto no cerrada antes del fin de línea (falta comilla de cierre " + delimComilla + ")"
+              });
+              col = textoLinea.length;
+            }
+            continue;
+          }
+
+          // 6. Números y Detección de Errores Numéricos / Identificadores Inválidos
+          if (/[0-9]/.test(textoLinea[col])) {
+            let pNum = col;
+            let strNum = '';
+
+            while (pNum < textoLinea.length && /[0-9]/.test(textoLinea[pNum])) {
+              strNum += textoLinea[pNum];
+              pNum++;
+            }
+
+            // Caso A: Detección de punto decimal
+            if (pNum < textoLinea.length && textoLinea[pNum] === '.') {
+              // Si va seguido de otro punto (ej. Kotlin range 1..10), NO es flotante
+              if (pNum + 1 < textoLinea.length && textoLinea[pNum + 1] === '.') {
+                tokens.push({
+                  lexema: strNum,
+                  categoria: 'NUMERO_ENTERO',
+                  linea: numLinea,
+                  columna: colInicioToken,
+                  descripcion: 'Número entero decimal'
+                });
+                col = pNum;
+                continue;
+              }
+
+              // Si va seguido de dígitos, es un decimal
+              if (pNum + 1 < textoLinea.length && /[0-9]/.test(textoLinea[pNum + 1])) {
+                strNum += '.';
+                pNum++;
+                while (pNum < textoLinea.length && /[0-9]/.test(textoLinea[pNum])) {
+                  strNum += textoLinea[pNum];
+                  pNum++;
+                }
+
+                // SUB-CASO ERROR: Flotante mal formado con múltiples puntos (ej. 3.14.15)
+                if (pNum < textoLinea.length && textoLinea[pNum] === '.') {
+                  let malformado = strNum;
+                  while (pNum < textoLinea.length && /[0-9.a-zA-Z_]/.test(textoLinea[pNum])) {
+                    malformado += textoLinea[pNum];
+                    pNum++;
+                  }
+                  tokens.push({
+                    lexema: malformado,
+                    categoria: 'ERROR_LEXICO',
+                    linea: numLinea,
+                    columna: colInicioToken,
+                    descripcion: "Número flotante mal formado: contiene múltiples puntos decimales ('" + malformado + "')"
+                  });
+                  col = pNum;
+                  continue;
+                }
+
+                // Decimal válido
+                tokens.push({
+                  lexema: strNum,
+                  categoria: 'NUMERO_DECIMAL',
+                  linea: numLinea,
+                  columna: colInicioToken,
+                  descripcion: 'Número de punto flotante válido'
+                });
+                col = pNum;
+                continue;
+              }
+            }
+
+            // SUB-CASO ERROR: Identificador que comienza con dígitos (ej. 99variable, 77contador)
+            if (pNum < textoLinea.length && /[a-zA-Z_]/.test(textoLinea[pNum])) {
+              let identInvalido = strNum;
+              while (pNum < textoLinea.length && /[a-zA-Z0-9_]/.test(textoLinea[pNum])) {
+                identInvalido += textoLinea[pNum];
+                pNum++;
+              }
+              tokens.push({
+                lexema: identInvalido,
+                categoria: 'ERROR_LEXICO',
+                linea: numLinea,
+                columna: colInicioToken,
+                descripcion: "Identificador con formato inválido: no puede comenzar con dígitos ('" + identInvalido + "')"
+              });
+              col = pNum;
+              continue;
+            }
+
+            // Entero válido
+            tokens.push({
+              lexema: strNum,
+              categoria: 'NUMERO_ENTERO',
+              linea: numLinea,
+              columna: colInicioToken,
+              descripcion: 'Número entero decimal'
+            });
+            col = pNum;
+            continue;
+          }
+
+          // 7. Símbolo '@' y Verbatim Identifiers (Reglas estrictas de la práctica)
+          if (textoLinea[col] === '@') {
+            if (config.prefijoVerbatimCSharp) {
+              // C#: Solo es válido si va inmediatamente seguido de [a-zA-Z_]
+              let pVerbatim = col + 1;
+              if (pVerbatim < textoLinea.length && /[a-zA-Z_]/.test(textoLinea[pVerbatim])) {
+                let idVerbatim = '@';
+                while (pVerbatim < textoLinea.length && /[a-zA-Z0-9_]/.test(textoLinea[pVerbatim])) {
+                  idVerbatim += textoLinea[pVerbatim];
+                  pVerbatim++;
+                }
+                tokens.push({
+                  lexema: idVerbatim,
+                  categoria: 'IDENTIFICADOR',
+                  linea: numLinea,
+                  columna: colInicioToken,
+                  descripcion: "Identificador verbatim C# válido (@ + palabra clave/identificador)"
+                });
+                col = pVerbatim;
+              } else {
+                tokens.push({
+                  lexema: '@',
+                  categoria: 'ERROR_LEXICO',
+                  linea: numLinea,
+                  columna: colInicioToken,
+                  descripcion: "Símbolo '@' aislado sin identificador válido en C#"
+                });
+                col++;
+              }
+            } else if (claveLenguaje === 'kotlin') {
+              // Kotlin: en la declaración val @nombre = "Kotlin", '@' es ilegal en el nombre
+              tokens.push({
+                lexema: '@',
+                categoria: 'ERROR_LEXICO',
+                linea: numLinea,
+                columna: colInicioToken,
+                descripcion: "Símbolo '@' no permitido en identificadores o variables de Kotlin"
+              });
+              col++;
+            } else {
+              // Python: símbolo '@' no permitido en este contexto léxico
+              tokens.push({
+                lexema: '@',
+                categoria: 'ERROR_LEXICO',
+                linea: numLinea,
+                columna: colInicioToken,
+                descripcion: "Símbolo '@' fuera del alfabeto permitido en este contexto de Python"
+              });
+              col++;
+            }
+            continue;
+          }
+
+          // 8. Identificadores y Palabras Reservadas
+          if (/[a-zA-Z_]/.test(textoLinea[col])) {
+            let pId = col;
+            let strId = '';
+            while (pId < textoLinea.length && /[a-zA-Z0-9_]/.test(textoLinea[pId])) {
+              strId += textoLinea[pId];
+              pId++;
+            }
+
+            // Verificar si es un operador lógico en forma de palabra (ej. and, or, not, is en Python)
+            if (config.operadores.logicos.includes(strId)) {
+              tokens.push({
+                lexema: strId,
+                categoria: 'OPERADOR_LOGICO',
+                linea: numLinea,
+                columna: colInicioToken,
+                descripcion: 'Operador lógico (' + strId + ')'
+              });
+            } else if (config.reservadas.includes(strId)) {
+              tokens.push({
+                lexema: strId,
+                categoria: 'RESERVADA',
+                linea: numLinea,
+                columna: colInicioToken,
+                descripcion: 'Palabra reservada del lenguaje ' + config.nombre
+              });
+            } else {
+              tokens.push({
+                lexema: strId,
+                categoria: 'IDENTIFICADOR',
+                linea: numLinea,
+                columna: colInicioToken,
+                descripcion: 'Identificador válido'
+              });
+            }
+            col = pId;
+            continue;
+          }
+
+          // 9. Operadores (Algoritmo Longest-Match / Maximal Munch)
+          let operadorEncontrado = false;
+          const todosLosOperadores = [
+            ...config.operadores.comparacion,
+            ...config.operadores.asignacion,
+            ...config.operadores.logicos,
+            ...config.operadores.aritmeticos
+          ].sort((a, b) => b.length - a.length); // Ordenar por longitud descendente
+
+          for (const op of todosLosOperadores) {
+            if (/^[a-zA-Z]/.test(op)) continue; // Ya procesados en el bloque de identificadores
+            if (restoLinea.startsWith(op)) {
+              let catOperador = 'OPERADOR_ARITMETICO';
+
+              if (config.operadores.comparacion.includes(op)) {
+                catOperador = 'OPERADOR_COMPARACION';
+              } else if (config.operadores.asignacion.includes(op)) {
+                catOperador = 'OPERADOR_ASIGNACION';
+              } else if (config.operadores.logicos.includes(op)) {
+                catOperador = 'OPERADOR_LOGICO';
+              } else {
+                catOperador = 'OPERADOR_ARITMETICO';
+              }
+
+              tokens.push({
+                lexema: op,
+                categoria: catOperador,
+                linea: numLinea,
+                columna: colInicioToken,
+                descripcion: META_CATEGORIAS[catOperador].etiqueta
+              });
+              col += op.length;
+              operadorEncontrado = true;
+              break;
+            }
+          }
+          if (operadorEncontrado) continue;
+
+          // 10. Delimitadores
+          if (config.delimitadores.includes(textoLinea[col])) {
+            tokens.push({
+              lexema: textoLinea[col],
+              categoria: 'DELIMITADOR',
+              linea: numLinea,
+              columna: colInicioToken,
+              descripcion: 'Símbolo delimitador (' + textoLinea[col] + ')'
+            });
+            col++;
+            continue;
+          }
+
+          // 11. Punto aislado (.) para acceso a propiedades o miembros
+          if (textoLinea[col] === '.') {
+            tokens.push({
+              lexema: '.',
+              categoria: 'DELIMITADOR',
+              linea: numLinea,
+              columna: colInicioToken,
+              descripcion: 'Punto de acceso a miembro'
+            });
+            col++;
+            continue;
+          }
+
+          // 12. Símbolo Ajeno al Alfabeto del Lenguaje (ERROR LÉXICO)
+          const caracterInvalido = textoLinea[col];
+          tokens.push({
+            lexema: caracterInvalido,
+            categoria: 'ERROR_LEXICO',
+            linea: numLinea,
+            columna: colInicioToken,
+            descripcion: "Símbolo '" + caracterInvalido + "' ajeno al alfabeto del lenguaje " + config.nombre
+          });
+          col++; // Modo pánico: avanzar un carácter y continuar
+        }
+      }
+
+      return tokens;
+    }
+
+    /* ─────────────────────────────────────────────────────────────
+       ACTUALIZACIÓN VISUAL DE LA TABLA DINÁMICA
+       ───────────────────────────────────────────────────────────── */
+    function renderizarTablaTokens(tokens, filtro) {
+      const tbody = document.getElementById('tokenTableBody');
+      tbody.innerHTML = '';
+
+      let listaFiltrada = tokens;
+      if (filtro === 'NUMEROS') {
+        listaFiltrada = tokens.filter(t => t.categoria.startsWith('NUMERO'));
+      } else if (filtro === 'OPERADORES') {
+        listaFiltrada = tokens.filter(t => t.categoria.startsWith('OPERADOR'));
+      } else if (filtro !== 'TODOS') {
+        listaFiltrada = tokens.filter(t => t.categoria === filtro);
+      }
+
+      if (listaFiltrada.length === 0) {
+        tbody.innerHTML = `<tr>
+          <td colspan="5" class="empty-state">
+            <span class="empty-state-icon">🔍</span>
+            No se encontraron tokens registrados en la categoría seleccionada.
+          </td>
+        </tr>`;
+        return;
+      }
+
+      listaFiltrada.forEach((tk, idx) => {
+        const meta = META_CATEGORIAS[tk.categoria] || { color: '#888', etiqueta: tk.categoria, icono: '•' };
+        const esError = tk.categoria === 'ERROR_LEXICO';
+        const tr = document.createElement('tr');
+        if (esError) tr.className = 'row-lexical-error';
+
+        const posTag = `L${String(tk.linea).padStart(2, '0')}:C${String(tk.columna).padStart(2, '0')}`;
+        const badgeHtml = esError
+          ? `<span class="badge-error">⚠ ${meta.etiqueta}</span>`
+          : `<span class="badge-token" style="background:${meta.color}20; color:${meta.color}; border:1px solid ${meta.color}50;">${meta.icono} ${meta.etiqueta}</span>`;
+
+        tr.innerHTML = `
+          <td style="color:var(--text-dim); font-size:0.8rem;">${idx + 1}</td>
+          <td style="font-weight:700; color:${meta.color};">${sanitizarHtml(tk.lexema)}</td>
+          <td>${badgeHtml}</td>
+          <td><span class="pos-chip">${posTag}</span></td>
+          <td style="color:${esError ? '#FF6680' : 'var(--text-dim)'}; font-size:0.84rem;">${sanitizarHtml(tk.descripcion)}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function sanitizarHtml(cadena) {
+      return String(cadena)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    /* ─────────────────────────────────────────────────────────────
+       ACTUALIZACIÓN DE TARJETAS DE MÉTRICAS Y DISTRIBUCIÓN
+       ───────────────────────────────────────────────────────────── */
+    function actualizarMetricasYDistribucion(tokens) {
+      const total = tokens.length;
+      const errores = tokens.filter(t => t.categoria === 'ERROR_LEXICO').length;
+      const validos = total - errores;
+      const tasa = total > 0 ? Math.round((validos / total) * 100) : 0;
+
+      document.getElementById('valTotalTokens').textContent = total;
+      document.getElementById('valTokensValidos').textContent = validos;
+      document.getElementById('valErroresLexicos').textContent = errores;
+      document.getElementById('valTasaAprobacion').textContent = total > 0 ? tasa + '%' : '—';
+      document.getElementById('barraTasaAprobacion').style.width = tasa + '%';
+
+      // Actualizar Banner de Diagnóstico
+      const banner = document.getElementById('bannerDiagnostico');
+      if (total === 0) {
+        banner.style.display = 'none';
+      } else if (errores === 0) {
+        banner.className = 'success';
+        banner.style.display = 'flex';
+        banner.innerHTML = `✅ <strong>Análisis Léxico Impecable:</strong> ${total} tokens reconocidos con éxito (0 errores léxicos detectados). Tasa de conformidad: 100%.`;
+      } else {
+        banner.className = 'error';
+        banner.style.display = 'flex';
+        banner.innerHTML = `🚨 <strong>Diagnóstico de Errores:</strong> Se detectaron ${errores} error(es) léxico(s) en ${total} tokens totales. Tasa de conformidad: ${tasa}%.`;
+      }
+
+      // Actualizar Barra de Distribución Porcentual
+      actualizarBarraDistribucion(tokens);
+    }
+
+    function actualizarBarraDistribucion(tokens) {
+      const track = document.getElementById('distribucionBarra');
+      const leyenda = document.getElementById('distribucionLeyenda');
+      track.innerHTML = '';
+      leyenda.innerHTML = '';
+
+      if (tokens.length === 0) {
+        leyenda.innerHTML = '<span style="color:var(--text-dim); font-size:0.8rem; font-family:var(--font-code);">— Ejecuta el análisis para visualizar la distribución proporcional de lexemas —</span>';
+        return;
+      }
+
+      const conteo = {};
+      tokens.forEach(t => {
+        conteo[t.categoria] = (conteo[t.categoria] || 0) + 1;
+      });
+
+      const categoriasOrdenadas = [
+        'RESERVADA', 'IDENTIFICADOR', 'NUMERO_ENTERO', 'NUMERO_DECIMAL', 'CADENA',
+        'OPERADOR_ARITMETICO', 'OPERADOR_COMPARACION', 'OPERADOR_ASIGNACION', 'OPERADOR_LOGICO',
+        'DELIMITADOR', 'COMENTARIO', 'ERROR_LEXICO'
+      ];
+
+      categoriasOrdenadas.forEach(cat => {
+        if (!conteo[cat]) return;
+        const meta = META_CATEGORIAS[cat];
+        const porcentaje = ((conteo[cat] / tokens.length) * 100).toFixed(1);
+
+        const seg = document.createElement('div');
+        seg.className = 'dist-segment';
+        seg.style.width = porcentaje + '%';
+        seg.style.backgroundColor = meta.color;
+        seg.title = `${meta.etiqueta}: ${conteo[cat]} (${porcentaje}%)`;
+        track.appendChild(seg);
+
+        const pill = document.createElement('div');
+        pill.className = 'dist-legend-pill';
+        pill.innerHTML = `
+          <span class="dist-legend-dot" style="background:${meta.color};"></span>
+          <span>${meta.etiqueta}:</span>
+          <strong style="color:${meta.color};">${conteo[cat]}</strong>
+          <span style="opacity:0.6;">(${porcentaje}%)</span>
+        `;
+        leyenda.appendChild(pill);
+      });
+    }
+
+    /* ─────────────────────────────────────────────────────────────
+       FUNCIONES GLOBALES DE INTERACCIÓN (EXPUESTAS EN window)
+       ───────────────────────────────────────────────────────────── */
+
+    // 1. Análisis del Código Completo
+    window.analizarCodigoCompleto = function() {
+      const editor = document.getElementById('codigoInput');
+      const codigo = editor.value;
+      const lang = document.getElementById('lenguajeTarget').value;
+
+      if (!codigo.trim()) {
+        window.mostrarNotificacionToast('⚠️ El editor está vacío. Ingresa o carga código primero.', true);
+        return;
+      }
+
+      tokensDetectados = ejecutarEscanerDFA(codigo, lang);
+      filtroCategoriaActual = 'TODOS';
+
+      // Resetear estilo de botones de filtro
+      document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+      const primerFiltro = document.querySelector('.filter-btn');
+      if (primerFiltro) primerFiltro.classList.add('active');
+
+      renderizarTablaTokens(tokensDetectados, 'TODOS');
+      actualizarMetricasYDistribucion(tokensDetectados);
+
+      const errores = tokensDetectados.filter(t => t.categoria === 'ERROR_LEXICO').length;
+      if (errores > 0) {
+        window.mostrarNotificacionToast(`🚨 Se encontraron ${errores} error(es) léxico(s)`, true);
+      } else {
+        window.mostrarNotificacionToast(`✅ ${tokensDetectados.length} tokens analizados correctamente`);
+      }
+    };
+
+    // 2. Clasificador de Lexema Individual
+    window.clasificarLexemaUnico = function() {
+      const input = document.getElementById('lexemaInput');
+      const resEl = document.getElementById('resultadoLexemaUnico');
+      const lexema = input.value.trim();
+      const lang = document.getElementById('lenguajeTarget').value;
+
+      if (!lexema) {
+        resEl.style.display = 'none';
+        return;
+      }
+
+      const tokens = ejecutarEscanerDFA(lexema, lang);
+      if (tokens.length === 0) {
+        resEl.className = 'invalid';
+        resEl.style.display = 'block';
+        resEl.innerHTML = '⚠️ No se pudo clasificar el lexema proporcionado.';
+        return;
+      }
+
+      const tk = tokens[0];
+      const meta = META_CATEGORIAS[tk.categoria] || { color: '#888', etiqueta: tk.categoria };
+
+      if (tk.categoria === 'ERROR_LEXICO') {
+        resEl.className = 'invalid';
+        resEl.style.display = 'block';
+        resEl.innerHTML = `
+          <strong>🚨 ERROR LÉXICO:</strong> El lexema <code>"${sanitizarHtml(lexema)}"</code> es inválido.<br>
+          <span style="font-size:0.84rem; opacity:0.85;">${sanitizarHtml(tk.descripcion)}</span>
+        `;
+      } else {
+        resEl.className = 'valid';
+        resEl.style.display = 'block';
+        resEl.innerHTML = `
+          <strong>✅ LEXEMA VÁLIDO:</strong> Categoría: <span style="color:${meta.color}; font-weight:700;">${meta.etiqueta}</span>.<br>
+          <span style="font-size:0.84rem; opacity:0.85;">${sanitizarHtml(tk.descripcion)}</span>
+        `;
+      }
+    };
+
+    // 3. Cambio Dinámico de Lenguaje Objetivo
+    window.cambiarLenguaje = function() {
+      const lang = document.getElementById('lenguajeTarget').value;
+      const config = CONFIG_LENGUAJES[lang];
+      tokensDetectados = [];
+      filtroCategoriaActual = 'TODOS';
+
+      document.getElementById('tokenTableBody').innerHTML = `<tr>
+        <td colspan="5" class="empty-state">
+          <span class="empty-state-icon">🔄</span>
+          Lenguaje cambiado a <strong>${config.nombre}</strong>. Presiona <strong>⚡ Ejecutar Análisis Léxico</strong>.
+        </td>
+      </tr>`;
+
+      actualizarMetricasYDistribucion([]);
+      document.getElementById('bannerDiagnostico').style.display = 'none';
+      window.mostrarNotificacionToast(`🔄 Gramática y scanner actualizados a ${config.nombre}`);
+    };
+
+    // 4. Filtrado de la Tabla Dinámica
+    window.filtrarTablaTokens = function(categoria, boton) {
+      filtroCategoriaActual = categoria;
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      if (boton) boton.classList.add('active');
+      renderizarTablaTokens(tokensDetectados, categoria);
+    };
+
+    // 5. Presets de Prueba Obligatorios
+    window.cargarEjemploPython = function() {
+      document.getElementById('lenguajeTarget').value = 'python';
+      const codigo = `# Ejemplo Python con def main() y error léxico intencional int $precio = 50
+def calcular_descuento(subtotal, tasa):
+    """Calcula el descuento aplicable a la compra."""
+    if subtotal > 0 and tasa <= 100:
+        ahorro = subtotal * (tasa / 100)
+        return subtotal - ahorro
+    return subtotal
+
+class Producto:
+    def __init__(self, nombre, costo):
+        self.nombre = nombre
+        self.costo = costo
+
+def main():
+    # 🚨 ERROR LÉXICO 1: Símbolo $ no pertenece al alfabeto de Python
+    int $precio = 50
+    
+    # 🚨 ERROR LÉXICO 2: Flotante con múltiples puntos decimales
+    factor_iva = 3.14.15
+    
+    # 🚨 ERROR LÉXICO 3: Identificador que inicia con dígitos
+    99variable = 100
+    
+    # 🚨 ERROR LÉXICO 4: Cadena no cerrada antes del fin de línea
+    mensaje_incompleto = "Texto que no cierra comilla
+    
+    descuento_final = calcular_descuento(500, 15)
+    print(descuento_final)
+
+main()`;
+      document.getElementById('codigoInput').value = codigo;
+      window.analizarCodigoCompleto();
+      window.mostrarNotificacionToast('📂 Ejemplo Python cargado y analizado');
+    };
+
+    window.cargarEjemploCSharp = function() {
+      document.getElementById('lenguajeTarget').value = 'csharp';
+      const codigo = `// Ejemplo C# con using System; y error de identificador inválido
+using System;
+using System.Collections.Generic;
+
+namespace EvaluadorLexico
+{
+    public class Calculadora
+    {
+        public static void Main(string[] args)
+        {
+            // ✅ Identificador verbatim especial con @ (VÁLIDO en C#)
+            string @class = "Palabra clave usada como identificador";
+            string @variable = "Identificador verbatim válido";
+
+            // 🚨 ERROR LÉXICO 1: Identificador inválido comenzando con dígitos
+            int 99numero = 10;
+
+            // 🚨 ERROR LÉXICO 2: Flotante mal formado
+            double medicion = 12.34.56;
+
+            // 🚨 ERROR LÉXICO 3: Símbolo ajeno al alfabeto
+            char ~ = 'x';
+
+            // Operadores y delimitadores válidos
+            int contador = 0;
+            contador++;
+            bool activo = true;
+
+            Console.WriteLine(@class);
+        }
+    }
+}`;
+      document.getElementById('codigoInput').value = codigo;
+      window.analizarCodigoCompleto();
+      window.mostrarNotificacionToast('📂 Ejemplo C# cargado y analizado');
+    };
+
+    window.cargarEjemploKotlin = function() {
+      document.getElementById('lenguajeTarget').value = 'kotlin';
+      const codigo = `// Ejemplo Kotlin con fun main() y error léxico val @nombre = "Kotlin"
+package com.instituto.automatas
+
+fun calcularTotal(base: Double, recargo: Double): Double {
+    return base + recargo
+}
+
+fun main() {
+    // 🚨 ERROR LÉXICO 1: Símbolo @ no permitido en identificadores de Kotlin
+    val @nombre = "Kotlin"
+
+    // 🚨 ERROR LÉXICO 2: Identificador comenzando con dígitos
+    val 77contador = 500
+
+    // 🚨 ERROR LÉXICO 3: Flotante mal formado con múltiples puntos
+    val coordenada = 4.50.75
+
+    // Tokens y estructuras válidas de Kotlin
+    var acumulador = 0
+    val rango = 1..10
+    
+    for (i in rango) {
+        acumulador += i
+    }
+
+    val estado = when (acumulador) {
+        0 -> "Inicial"
+        else -> "Procesado"
+    }
+
+    println("Resultado: $acumulador")
+}`;
+      document.getElementById('codigoInput').value = codigo;
+      window.analizarCodigoCompleto();
+      window.mostrarNotificacionToast('📂 Ejemplo Kotlin cargado y analizado');
+    };
+
+    // 6. Caso Especial Didáctico: 20+*5
+    window.cargarCaso20mas5 = function() {
+      document.getElementById('popupCaso20mas5').classList.add('open');
+    };
+
+    window.cerrarPopupCaso20mas5 = function() {
+      document.getElementById('popupCaso20mas5').classList.remove('open');
+    };
+
+    window.ejecutarCargaCaso20mas5 = function() {
+      window.cerrarPopupCaso20mas5();
+      document.getElementById('lenguajeTarget').value = 'csharp';
+      const codigo = `// =====================================================================
+// CASO DE EVALUACIÓN OBLIGATORIO: int resultado = 20 + * 5;
+// =====================================================================
+// PREGUNTA FORMAL DE LA PRÁCTICA: ¿Contiene "20+*5" errores léxicos?
+// RESPUESTA: NO contiene errores léxicos (100% de Aprobación).
+//
+// Los cuatro lexemas son individualmente válidos según el alfabeto:
+// 1. '20' -> NUMERO_ENTERO
+// 2. '+'  -> OPERADOR_ARITMETICO
+// 3. '*'  -> OPERADOR_ARITMETICO
+// 4. '5'  -> NUMERO_ENTERO
+//
+// El error resultante es SINTÁCTICO: La gramática libre de contexto
+// prohíbe dos operadores binarios consecutivos sin un operando intermedio.
+// =====================================================================
+
+int resultado = 20 + * 5;`;
+      document.getElementById('codigoInput').value = codigo;
+      window.analizarCodigoCompleto();
+      window.mostrarNotificacionToast('⚠️ Caso 20+*5 analizado: 100% Válido a nivel léxico');
+    };
+
+    window.probarCasoArroba = function() {
+      window.cerrarModalDidactico();
+      document.getElementById('lenguajeTarget').value = 'csharp';
+      const codigo = `// Prueba comparativa del símbolo '@' en C#
+string @class = "Válido: Verbatim Identifier";
+int @variable = 100; // Válido
+
+// 🚨 ERROR LÉXICO: Símbolo '@' aislado sin identificador
+@`;
+      document.getElementById('codigoInput').value = codigo;
+      window.analizarCodigoCompleto();
+      window.mostrarNotificacionToast('🔍 Caso @ cargado en C#');
+    };
+
+    // 7. Limpieza del Editor
+    window.limpiarEditor = function() {
+      document.getElementById('codigoInput').value = '';
+      tokensDetectados = [];
+      document.getElementById('tokenTableBody').innerHTML = `<tr>
+        <td colspan="5" class="empty-state">
+          <span class="empty-state-icon">🗑️</span>
+          Editor limpio. Ingresa código o carga un caso de prueba para comenzar.
+        </td>
+      </tr>`;
+      actualizarMetricasYDistribucion([]);
+      document.getElementById('bannerDiagnostico').style.display = 'none';
+      document.getElementById('resultadoLexemaUnico').style.display = 'none';
+      document.getElementById('editorPosTracker').textContent = 'L01:C01';
+      window.mostrarNotificacionToast('🗑 Editor restablecido');
+    };
+
+    // 8. Tracker de Posición del Cursor en Tiempo Real
+    window.actualizarPosicionCursor = function(e) {
+      const ta = document.getElementById('codigoInput');
+      const pos = ta.selectionStart;
+      const texto = ta.value.substring(0, pos);
+      const lineas = texto.split('\n');
+      const numLin = lineas.length;
+      const numCol = lineas[lineas.length - 1].length + 1;
+      const tracker = document.getElementById('editorPosTracker');
+      tracker.textContent = `L${String(numLin).padStart(2, '0')}:C${String(numCol).padStart(2, '0')}`;
+    };
+
+    // 9. Exportación de Evidencias: CSV
+    window.exportarCSV = function() {
+      if (tokensDetectados.length === 0) {
+        window.mostrarNotificacionToast('⚠️ No hay tokens para exportar. Ejecuta el análisis primero.', true);
+        return;
+      }
+
+      const lang = document.getElementById('lenguajeTarget').value;
+      const encabezados = '#,Lexema,Categoría,Línea,Columna,Descripción\n';
+      const filas = tokensDetectados.map((tk, idx) => {
+        const lexLimpio = tk.lexema.replace(/"/g, '""');
+        const descLimpia = tk.descripcion.replace(/"/g, '""');
+        return `${idx + 1},"${lexLimpio}","${tk.categoria}",${tk.linea},${tk.columna},"${descLimpia}"`;
+      }).join('\n');
+
+      const contenidoCSV = '\uFEFF' + encabezados + filas; // \uFEFF para soporte UTF-8 en Excel
+      descargarArchivoBlob(`Reporte_Lexico_${lang.toUpperCase()}_Fernando_Vidal.csv`, contenidoCSV, 'text/csv;charset=utf-8;');
+      window.mostrarNotificacionToast('📥 Reporte CSV exportado con éxito');
+    };
+
+    // 10. Exportación de Evidencias: JSON
+    window.exportarJSON = function() {
+      if (tokensDetectados.length === 0) {
+        window.mostrarNotificacionToast('⚠️ No hay tokens para exportar. Ejecuta el análisis primero.', true);
+        return;
+      }
+
+      const lang = document.getElementById('lenguajeTarget').value;
+      const errores = tokensDetectados.filter(t => t.categoria === 'ERROR_LEXICO').length;
+      const validos = tokensDetectados.length - errores;
+      const tasa = tokensDetectados.length > 0 ? Math.round((validos / tokensDetectados.length) * 100) : 0;
+
+      const reporteJSON = {
+        institucion: {
+          estudiante: 'Fernando Vidal Delgado',
+          noControl: '2320905',
+          materia: 'Autómatas I',
+          actividad: 'Actividad 4 - Analizador de Errores Léxicos',
+          catedra: 'Mtro. Diego Spíndola',
+          fechaGeneracion: new Date().toISOString()
+        },
+        lenguajeObjetivo: CONFIG_LENGUAJES[lang].nombre,
+        metricas: {
+          totalTokens: tokensDetectados.length,
+          tokensValidos: validos,
+          erroresLexicos: errores,
+          tasaAprobacionPorcentual: tasa
+        },
+        tokens: tokensDetectados
+      };
+
+      const contenidoJSON = JSON.stringify(reporteJSON, null, 2);
+      descargarArchivoBlob(`Reporte_Lexico_${lang.toUpperCase()}_Fernando_Vidal.json`, contenidoJSON, 'application/json');
+      window.mostrarNotificacionToast('📄 Reporte JSON exportado con éxito');
+    };
+
+    function descargarArchivoBlob(nombreArchivo, contenido, tipoMime) {
+      const blob = new Blob([contenido], { type: tipoMime });
+      const url = URL.createObjectURL(blob);
+      const enlace = document.createElement('a');
+      enlace.href = url;
+      enlace.download = nombreArchivo;
+      document.body.appendChild(enlace);
+      enlace.click();
+      document.body.removeChild(enlace);
+      URL.revokeObjectURL(url);
+    }
+
+    // 11. Modal Didáctico Handlers
+    window.abrirModalDidactico = function() {
+      document.getElementById('modalDidactico').classList.add('open');
+      document.body.style.overflow = 'hidden';
+    };
+
+    window.cerrarModalDidactico = function() {
+      document.getElementById('modalDidactico').classList.remove('open');
+      document.body.style.overflow = '';
+    };
+
+    // 12. Sistema de Notificaciones Toast
+    let temporizadorToast = null;
+    window.mostrarNotificacionToast = function(mensaje, esError = false) {
+      const toast = document.getElementById('notificationToast');
+      toast.textContent = mensaje;
+      toast.className = esError ? 'toast-error show' : 'show';
+      if (temporizadorToast) clearTimeout(temporizadorToast);
+      temporizadorToast = setTimeout(() => {
+        toast.classList.remove('show');
+      }, 3400);
+    };
+
+    // Atajos de Teclado: Ctrl+Enter para Analizar, Escape para Cerrar Modales
+    document.addEventListener('keydown', function(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        window.analizarCodigoCompleto();
+      }
+      if (e.key === 'Escape') {
+        window.cerrarModalDidactico();
+        window.cerrarPopupCaso20mas5();
+      }
+    });
+
+    /* Inicialización Automática */
+    (function inicializarAplicacion() {
+      document.getElementById('lenguajeTarget').value = 'python';
+      actualizarMetricasYDistribucion([]);
+    })();
+  </script>
+</body>
+</html>
